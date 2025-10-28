@@ -8,6 +8,7 @@ repository = "https://github.com/mulatta/selexqc"
 homepage = "https://github.com/mulatta/selexqc"
 documentation = "https://docs.rs/selexqc"
 readme = "README.md"
+description = "High-performance parallel RNA Capture-SELEX library quality control"
 keywords = ["bioinformatics", "fasta", "fastq", "sequence", "selex"]
 categories = ["science", "command-line-utilities"]
 
