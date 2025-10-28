@@ -6,7 +6,7 @@ mod stats;
 mod validate;
 
 #[derive(Parser)]
-#[command(name = "slxqc")]
+#[command(name = "selexqc")]
 #[command(about = "RNA Capture-SELEX Library Quality Control", long_about = None)]
 #[command(version)]
 struct Cli {

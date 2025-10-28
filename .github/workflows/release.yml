@@ -19,22 +19,22 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             nix-system: x86_64-linux
-            artifact-name: slxqc-linux-x86_64
+            artifact-name: selexqc-linux-x86_64
             use-qemu: false
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             nix-system: aarch64-linux
-            artifact-name: slxqc-linux-aarch64
+            artifact-name: selexqc-linux-aarch64
             use-qemu: true
           - target: x86_64-apple-darwin
             os: macos-13
             nix-system: x86_64-darwin
-            artifact-name: slxqc-macos-x86_64
+            artifact-name: selexqc-macos-x86_64
             use-qemu: false
           - target: aarch64-apple-darwin
             os: macos-14
             nix-system: aarch64-darwin
-            artifact-name: slxqc-macos-aarch64
+            artifact-name: selexqc-macos-aarch64
             use-qemu: false
     steps:
       - name: Checkout code
@@ -71,16 +71,16 @@ jobs:
       - name: Build binary
         run: |
           echo "Building for ${{ matrix.nix-system }}"
-          nix build .#packages.${{ matrix.nix-system }}.slxqc \
+          nix build .#packages.${{ matrix.nix-system }}.selexqc \
             --print-build-logs \
             --show-trace
 
           # Copy binary to workspace
-          cp result/bin/slxqc slxqc-${{ matrix.target }}
-          chmod +x slxqc-${{ matrix.target }}
+          cp result/bin/selexqc selexqc-${{ matrix.target }}
+          chmod +x selexqc-${{ matrix.target }}
       - name: Verify binary
         run: |
-          file slxqc-${{ matrix.target }}
+          file selexqc-${{ matrix.target }}
       - name: Get version
         id: version
         run: |
@@ -94,7 +94,7 @@ jobs:
       - name: Create archive
         run: |
           tar -czf ${{ matrix.artifact-name }}-${{ steps.version.outputs.version }}.tar.gz \
-            slxqc-${{ matrix.target }}
+            selexqc-${{ matrix.target }}
 
           # Create checksum
           if [[ "$RUNNER_OS" == "macOS" ]]; then

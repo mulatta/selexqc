@@ -9,8 +9,8 @@
     linkerArgs = lib.optionalString isLinux "-C link-arg=-fuse-ld=mold";
   in {
     packages = {
-      slxqc = pkgs.rustPlatform.buildRustPackage {
-        pname = "slxqc";
+      selexqc = pkgs.rustPlatform.buildRustPackage {
+        pname = "selexqc";
         version = "0.1.0";
 
         src = lib.cleanSourceWith {
@@ -51,7 +51,7 @@
 
         installPhase = ''
           runHook preInstall
-          install -Dm755 target/release/slxqc $out/bin/slxqc
+          install -Dm755 target/release/selexqc $out/bin/selexqc
           runHook postInstall
         '';
 
@@ -67,7 +67,7 @@
         meta = with lib; {
           description = "High-performance parallel FASTA/FASTQ sequence counter";
           longDescription = ''
-            slxqc is a fast, parallel quality control and filtering tool for RNA Capture-SELEX
+            selexqc is a fast, parallel quality control and filtering tool for RNA Capture-SELEX
             NGS libraries. It validates library structure, detects constant regions, and filters
             sequences based on configurable criteria with support for FASTA, FASTQ, and
             compressed formats. Features include:
@@ -79,15 +79,15 @@
             - MultiQC integration for pipeline workflows
             - Comprehensive reporting (TXT/CSV/JSON)
           '';
-          homepage = "https://github.com/mulatta/slxqc";
+          homepage = "https://github.com/mulatta/selexqc";
           license = licenses.mit;
           maintainers = [];
           platforms = platforms.linux ++ platforms.darwin;
-          mainProgram = "slxqc";
+          mainProgram = "selexqc";
         };
       };
 
-      default = self'.packages.slxqc;
+      default = self'.packages.selexqc;
     };
   };
 }

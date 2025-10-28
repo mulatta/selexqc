@@ -1,5 +1,5 @@
 {
-  description = "slxqc - Blazingly Fast Sequence Count Table generator";
+  description = "selexqc - Blazingly Fast Sequence Count Table generator";
 
   outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {

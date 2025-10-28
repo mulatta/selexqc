@@ -1,12 +1,12 @@
 [package]
-name = "slxqc"
+name = "selexqc"
 version = "0.1.0"
 edition = "2024"
 authors = ["Seungwon Lee lsw1167@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/mulatta/slxqc"
-homepage = "https://github.com/mulatta/slxqc"
-documentation = "https://docs.rs/slxqc"
+repository = "https://github.com/mulatta/selexqc"
+homepage = "https://github.com/mulatta/selexqc"
+documentation = "https://docs.rs/selexqc"
 readme = "README.md"
 keywords = ["bioinformatics", "fasta", "fastq", "sequence", "selex"]
 categories = ["science", "command-line-utilities"]

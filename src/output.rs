@@ -354,7 +354,7 @@ pub fn write_multiqc_report(output_prefix: &str, stats: &Stats) -> Result<()> {
     }
 
     let report = json!({
-        "id": "slxqc",
+        "id": "selexqc",
         "section_name": "RNA SELEX QC",
         "description": "RNA Capture-SELEX library quality control and filtering statistics",
         "plot_type": "generalstats",

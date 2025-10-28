@@ -20,7 +20,7 @@
           # Build tools
           pkg-config
         ]
-        ++ [(python3.withPackages (ps: [ps.polars ps.ipython])) config.packages.slxqc];
+        ++ [(python3.withPackages (ps: [ps.polars ps.ipython])) config.packages.selexqc];
 
       shellHook = ''
         export ROOT=$(git rev-parse --show-toplevel)

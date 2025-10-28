@@ -1,4 +1,4 @@
-# slxqc - RNA Capture-SELEX Library Quality Control
+# selexqc - RNA Capture-SELEX Library Quality Control
 
 High-performance quality control and filtering tool for RNA Capture-SELEX NGS libraries, written in Rust.
 
@@ -19,17 +19,17 @@ High-performance quality control and filtering tool for RNA Capture-SELEX NGS li
 ### From Source (Cargo)
 
 ```bash
-git clone https://github.com/mulatta/slxqc.git
-cd slxqc
+git clone https://github.com/mulatta/selexqc.git
+cd selexqc
 cargo build --release
-# Binary: target/release/slxqc
+# Binary: target/release/selexqc
 ```
 
 ### Using Nix
 
 ```bash
 nix build
-# Binary: result/bin/slxqc
+# Binary: result/bin/selexqc
 ```
 
 ## Quick Start
@@ -38,14 +38,14 @@ nix build
 
 ```bash
 # Check sequences for constant region presence
-slxqc -i library.fq.gz -o results -c TGGCCACCAT
+selexqc -i library.fq.gz -o results -c TGGCCACCAT
 ```
 
 ### With Structure Validation (Recommended)
 
 ```bash
 # N40:N10 library (40bp upstream + 10bp constant + 10bp downstream)
-slxqc \
+selexqc \
   -i library.fq.gz \
   -o results \
   -c TGGCCACCAT \
@@ -60,7 +60,7 @@ slxqc \
 ## Usage
 
 ```bash
-slxqc [OPTIONS] --input <FILE> --output <PREFIX> --constant <SEQ>
+selexqc [OPTIONS] --input <FILE> --output <PREFIX> --constant <SEQ>
 ```
 
 ### Required Arguments
@@ -151,7 +151,7 @@ Tolerance: ±2bp upstream, ±1bp downstream
 Expected structure: 40bp variable + 10bp constant + 10bp variable = 60bp total
 
 ```bash
-slxqc \
+selexqc \
   -i library.fq.gz \
   -o n40n10_qc \
   -c TGGCCACCAT \
@@ -182,7 +182,7 @@ slxqc \
 ### Example 2: N25:N25 Library
 
 ```bash
-slxqc \
+selexqc \
   -i library.fq.gz \
   -o n25n25_qc \
   -c TGGCCACCAT \
@@ -199,7 +199,7 @@ slxqc \
 Accept sequences with ANY valid characteristic:
 
 ```bash
-slxqc \
+selexqc \
   -i mixed_library.fq.gz \
   -o mixed_qc \
   -c TGGCCACCAT \
@@ -213,7 +213,7 @@ slxqc \
 Filter by quality score (FASTQ only):
 
 ```bash
-slxqc \
+selexqc \
   -i raw.fastq.gz \
   -o qfiltered \
   -c TGGCCACCAT \
@@ -227,7 +227,7 @@ slxqc \
 Analyze library structure without saving filtered sequences:
 
 ```bash
-slxqc \
+selexqc \
   -i library.fa \
   -o analysis \
   -c TGGCCACCAT \
@@ -243,7 +243,7 @@ cat analysis.structure_pairs.csv
 ```bash
 # Process multiple samples
 for sample in sample1 sample2 sample3; do
-  slxqc \
+  selexqc \
     -i ${sample}.fq.gz \
     -o qc/${sample} \
     -c TGGCCACCAT \
@@ -379,7 +379,7 @@ This helps identify:
 1. **Initial exploration** (no structure validation):
 
 ```bash
-slxqc -i library.fq.gz -o explore -c TGGCCACCAT
+selexqc -i library.fq.gz -o explore -c TGGCCACCAT
 cat explore.validation.txt  # Review distributions
 ```
 
@@ -415,7 +415,7 @@ cat explore.validation.txt  # Review distributions
 ```bash
 # Process all samples in parallel (GNU parallel)
 ls *.fq.gz | parallel -j 4 \
-  'slxqc -i {} -o qc/{/.} -c TGGCCACCAT \
+  'selexqc -i {} -o qc/{/.} -c TGGCCACCAT \
    --upstream-length 40 --downstream-length 10 \
    --filter --multiqc'
 
@@ -469,12 +469,12 @@ For very large files (>100M reads):
 
 ```bash
 # Reduce thread count to lower memory usage
-slxqc -i huge.fq.gz -o output -c CONST --threads 4
+selexqc -i huge.fq.gz -o output -c CONST --threads 4
 
 # Or process in chunks (external tool)
 split -l 40000000 huge.fq huge_chunk_
 for chunk in huge_chunk_*; do
-  slxqc -i $chunk -o qc/$(basename $chunk) -c CONST
+  selexqc -i $chunk -o qc/$(basename $chunk) -c CONST
 done
 ```
 
@@ -526,18 +526,18 @@ MIT License - see LICENSE file for details
 
 ## Citation
 
-If you use `slxqc` in your research, please cite:
+If you use `selexqc` in your research, please cite:
 
 ```
-slxqc: High-performance quality control for RNA Capture-SELEX libraries
-https://github.com/mulatta/slxqc
+selexqc: High-performance quality control for RNA Capture-SELEX libraries
+https://github.com/mulatta/selexqc
 ```
 
 ## Support
 
-- **Issues**: https://github.com/mulatta/slxqc/issues
-- **Documentation**: https://github.com/mulatta/slxqc/wiki
-- **Discussions**: https://github.com/mulatta/slxqc/discussions
+- **Issues**: https://github.com/mulatta/selexqc/issues
+- **Documentation**: https://github.com/mulatta/selexqc/wiki
+- **Discussions**: https://github.com/mulatta/selexqc/discussions
 
 ## Changelog
 
