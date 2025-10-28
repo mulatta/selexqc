@@ -1,0 +1,13 @@
+# test dataset
+test
+
+# buld results
+/target
+result/*
+
+# caches
+.direnv/*
+.cargo/*
+!.cargo/config.toml
+
+.jj/*

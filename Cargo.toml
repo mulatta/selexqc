@@ -1,0 +1,33 @@
+[package]
+name = "slxqc"
+version = "0.1.0"
+edition = "2024"
+authors = ["Seungwon Lee lsw1167@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/mulatta/slxqc"
+homepage = "https://github.com/mulatta/slxqc"
+documentation = "https://docs.rs/slxqc"
+readme = "README.md"
+keywords = ["bioinformatics", "fasta", "fastq", "sequence", "selex"]
+categories = ["science", "command-line-utilities"]
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+needletail = "0.5"
+rayon = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+flate2 = "1.0"
+csv = "1.3"
+memchr = "2.7"
+
+[features]
+simd = []
+default = []
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
