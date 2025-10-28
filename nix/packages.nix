@@ -1,8 +1,8 @@
-{
+{inputs, ...}: {
   perSystem = {
-    self',
-    pkgs,
     lib,
+    pkgs,
+    self',
     ...
   }: {
     packages = {
@@ -10,21 +10,9 @@
         pname = "selexqc";
         version = "0.1.0";
 
-        src = lib.cleanSourceWith {
-          src = ../.;
-          filter = path: _type: let
-            baseName = baseNameOf path;
-          in
-            !(lib.hasSuffix ".nix" baseName)
-            && baseName != "target"
-            && baseName != "result"
-            && baseName != ".git"
-            && baseName != ".github";
-        };
+        src = inputs.gitignore.lib.gitignoreSource ../.;
 
-        cargoLock = {
-          lockFile = ../Cargo.lock;
-        };
+        cargoLock.lockFile = ../Cargo.lock;
 
         nativeBuildInputs = with pkgs; [
           pkg-config

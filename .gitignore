@@ -7,7 +7,5 @@ result/*
 
 # caches
 .direnv/*
-.cargo/*
-!.cargo/config.toml
 
 .jj/*
