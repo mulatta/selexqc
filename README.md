@@ -2,6 +2,8 @@
 
 High-performance quality control and filtering tool for RNA Capture-SELEX NGS libraries, written in Rust.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Features
 
 - ⚡ **Fast**: Parallel processing with zero-copy parsing using `needletail`

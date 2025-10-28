@@ -7,6 +7,7 @@
 
       imports = [
         ./nix/packages.nix
+        ./nix/overlays.nix
         ./nix/shell.nix
         ./nix/formatter.nix
       ];
