@@ -3,7 +3,7 @@ test
 
 # buld results
 /target
-result/*
+result*
 
 # caches
 .direnv/*
