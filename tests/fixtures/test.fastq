@@ -1,32 +1,44 @@
-@seq1_valid_perfect
+@seq1_valid_perfect valid:perfect_match
 AAAAAANNNNNNNNNNTTTTTT
 +
-IIIIIIIIIIIIIIIIIIIII!
-@seq2_valid_perfect
+IIIIIIIIIIIIIIIIIIIIII
+@seq2_valid_duplicate valid:duplicate_of_seq1
 AAAAAANNNNNNNNNNTTTTTT
 +
-IIIIIIIIIIIIIIIIIIIII!
-@seq3_valid_different_rand
+IIIIIIIIIIIIIIIIIIIIII
+@seq3_valid_different_rand valid:different_random_region
 AAAAAAGCATGCATGCTTTTTT
 +
-IIIIIIIIIIIIIIIIIIIII!
-@seq4_rand_too_short
+IIIIIIIIIIIIIIIIIIIIII
+@seq4_valid_min_rand valid:minimum_rand_length
+AAAAAANNNNNNNNTTTTTT
++
+IIIIIIIIIIIIIIIIIIII
+@seq5_rand_too_short invalid:rand_too_short
 AAAAAANNTTTTTT
 +
 IIIIIIIIIIIIII
-@seq5_missing_second_const
-AAAAANNNNNNNNNNXXXXXX
+@seq6_rand_too_long invalid:rand_too_long
+AAAAAANNNNNNNNNNNNNNTTTTTT
 +
-IIIIIIIIIIIIIIIIIIII!
-@seq6_missing_first_const
+IIIIIIIIIIIIIIIIIIIIIIIIII
+@seq7_missing_3p invalid:missing_3p_const
+AAAAAANNNNNNNNNNXXXXXX
++
+IIIIIIIIIIIIIIIIIIIIII
+@seq8_missing_5p invalid:missing_5p_const
 XXXXXXNNNNNNNNNNTTTTTT
 +
-IIIIIIIIIIIIIIIIIIIII!
-@seq7_leading_gap
+IIIIIIIIIIIIIIIIIIIIII
+@seq9_leading_gap invalid:leading_gap_2bp
 GGAAAAAANNNNNNNNNNTTTTTT
 +
-IIIIIIIIIIIIIIIIIIIIIII!
-@seq8_duplicate_of_seq1
+IIIIIIIIIIIIIIIIIIIIIIII
+@seq10_trailing_gap invalid:trailing_gap_2bp
+AAAAAANNNNNNNNNNTTTTTTCC
++
+IIIIIIIIIIIIIIIIIIIIIIII
+@seq11_third_duplicate valid:third_duplicate_of_seq1
 AAAAAANNNNNNNNNNTTTTTT
 +
-IIIIIIIIIIIIIIIIIIIII!
+IIIIIIIIIIIIIIIIIIIIII
