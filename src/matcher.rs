@@ -195,7 +195,7 @@ impl ConstructMatcher {
         anchors
             .iter()
             .enumerate()
-            .map(|(i, anchor)| {
+            .map(|(_, anchor)| {
                 anchor.map(|(start, end)| ConstMatch {
                     position: start,
                     length: end - start,
