@@ -42,7 +42,7 @@ pub fn write_count_parquet(
     let ranks: Vec<u64> = entries.iter().map(|e| e.rank).collect();
     let sequences: Vec<&str> = entries
         .iter()
-        .map(|e| std::str::from_utf8(&e.sequence).unwrap_or(""))
+        .map(|e| std::str::from_utf8(&e.sequence).expect("DNA sequences are valid UTF-8"))
         .collect();
     let counts: Vec<u64> = entries.iter().map(|e| e.count).collect();
     let rpms: Vec<f64> = entries.iter().map(|e| e.rpm).collect();

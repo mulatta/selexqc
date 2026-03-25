@@ -31,7 +31,7 @@ pub fn run_count(config: &CountConfig) -> Result<()> {
     if let Some(parent) = std::path::Path::new(&config.output_prefix).parent()
         && !parent.as_os_str().is_empty()
     {
-        std::fs::create_dir_all(parent).ok();
+        std::fs::create_dir_all(parent)?;
     }
 
     let mut reader = parse_fastx_file(&config.input).context("Failed to open input file")?;

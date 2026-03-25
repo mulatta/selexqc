@@ -50,7 +50,7 @@ pub fn run_analyze(config: &AnalyzeConfig) -> Result<()> {
     if let Some(parent) = std::path::Path::new(&config.output_prefix).parent()
         && !parent.as_os_str().is_empty()
     {
-        std::fs::create_dir_all(parent).ok();
+        std::fs::create_dir_all(parent)?;
     }
 
     let mut reader = parse_fastx_file(&config.input).context("Failed to open input file")?;
@@ -127,29 +127,39 @@ pub fn run_analyze(config: &AnalyzeConfig) -> Result<()> {
     let json_path = format!("{}.report.json", config.output_prefix);
     let txt_path = format!("{}.report.txt", config.output_prefix);
 
-    std::thread::scope(|s| {
-        s.spawn(|| io::write_count_parquet(&parquet_path, &entries, metadata, true));
-        s.spawn(|| io::write_ranked_fasta(&fasta_path, &entries));
-        s.spawn(|| {
-            io::write_json_report(
-                &json_path,
-                &config.segments,
-                &construct_col,
-                &comp_col,
-                &comb_col,
-                total_reads,
-            )
-        });
-        s.spawn(|| {
-            io::write_text_report(
-                &txt_path,
-                &config.segments,
-                &construct_col,
-                &comb_col,
-                total_reads,
-            )
-        });
+    let errors: Vec<anyhow::Error> = std::thread::scope(|s| {
+        let handles: Vec<_> = vec![
+            s.spawn(|| io::write_count_parquet(&parquet_path, &entries, metadata, true)),
+            s.spawn(|| io::write_ranked_fasta(&fasta_path, &entries)),
+            s.spawn(|| {
+                io::write_json_report(
+                    &json_path,
+                    &config.segments,
+                    &construct_col,
+                    &comp_col,
+                    &comb_col,
+                    total_reads,
+                )
+            }),
+            s.spawn(|| {
+                io::write_text_report(
+                    &txt_path,
+                    &config.segments,
+                    &construct_col,
+                    &comb_col,
+                    total_reads,
+                )
+            }),
+        ];
+        handles
+            .into_iter()
+            .filter_map(|h| h.join().ok().and_then(|r| r.err()))
+            .collect()
     });
+
+    if let Some(first_err) = errors.into_iter().next() {
+        return Err(first_err);
+    }
 
     Ok(())
 }
@@ -161,7 +171,7 @@ fn process_chunk(
     construct_col: &mut ConstructCollector,
     comp_col: &mut CompositionCollector,
     comb_col: &mut CombinationCollector,
-    filter_writer: Option<&mut io::FilterWriter>,
+    mut filter_writer: Option<&mut io::FilterWriter>,
 ) -> Result<()> {
     // Parallel validation
     let match_results: Vec<_> = chunk
@@ -169,30 +179,22 @@ fn process_chunk(
         .map(|rec| matcher.match_construct(&rec.seq))
         .collect();
 
-    // Build paired records for collectors
-    let paired: Vec<(Vec<u8>, crate::matcher::MatchResult)> = chunk
-        .iter()
-        .zip(match_results.iter())
-        .map(|(rec, mr)| (rec.seq.clone(), mr.clone()))
-        .collect();
+    // Feed collectors directly (no intermediate clone)
+    for (rec, result) in chunk.iter().zip(match_results.iter()) {
+        count_col.process_record(&rec.seq);
+        construct_col.process_record(&rec.seq, result);
+        comp_col.process_record(&rec.seq, result);
+        comb_col.process_record(result);
 
-    // Feed collectors (sequential, fast)
-    count_col.process_chunk(&paired);
-    construct_col.process_chunk(&paired);
-    comp_col.process_chunk(&paired);
-    comb_col.process_chunk(&paired);
-
-    // Write valid sequences to filter output
-    if let Some(fw) = filter_writer {
-        for (rec, result) in chunk.iter().zip(match_results.iter()) {
-            if result.matched {
-                // Extract first rand region for random extraction
-                let random_region = result
-                    .rand_regions
-                    .first()
-                    .and_then(|rm| rm.as_ref().map(|r| &rec.seq[r.start..r.start + r.length]));
-                fw.write_valid(&rec.id, &rec.seq, rec.qual.as_deref(), random_region)?;
-            }
+        // Write valid sequences to filter output
+        if let Some(fw) = &mut filter_writer
+            && result.matched
+        {
+            let random_region = result
+                .rand_regions
+                .first()
+                .and_then(|rm| rm.as_ref().map(|r| &rec.seq[r.start..r.start + r.length]));
+            fw.write_valid(&rec.id, &rec.seq, rec.qual.as_deref(), random_region)?;
         }
     }
 
