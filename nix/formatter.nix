@@ -10,10 +10,6 @@
         deadnix.enable = true;
         statix.enable = true;
 
-        # Python formatters & linters
-        ruff-check.enable = true;
-        ruff-format.enable = true;
-
         # Rust formatters & linters
         rustfmt.enable = true;
 

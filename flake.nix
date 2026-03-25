@@ -1,13 +1,12 @@
 {
-  description = "selexqc - Blazingly Fast Sequence Count Table generator";
+  description = "SELEX analysis toolkit";
 
   outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
-      systems = import inputs.systems;
+      systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
 
       imports = [
         ./nix/packages.nix
-        ./nix/overlays.nix
         ./nix/shell.nix
         ./nix/formatter.nix
       ];
@@ -36,14 +35,12 @@
 
   inputs = {
     # keep-sorted start
+    crane.url = "github:ipetkov/crane";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
     flake-parts.url = "github:hercules-ci/flake-parts";
-    gitignore.inputs.nixpkgs.follows = "nixpkgs";
-    gitignore.url = "github:hercules-ci/gitignore.nix";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    systems.url = "github:nix-systems/default";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     # keep-sorted end

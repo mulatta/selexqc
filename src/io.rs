@@ -98,7 +98,7 @@ pub fn write_ranked_fasta(path: &str, entries: &[CountEntry]) -> Result<()> {
 
     for entry in entries {
         // Format: >RANK-READS-RPM
-        write!(writer, ">{}-{}-{:.2}\n", entry.rank, entry.count, entry.rpm)?;
+        writeln!(writer, ">{}-{}-{:.2}", entry.rank, entry.count, entry.rpm)?;
         writer.write_all(&entry.sequence)?;
         writer.write_all(b"\n")?;
     }
@@ -189,14 +189,14 @@ impl FilterWriter {
         }
 
         // Write random region
-        if self.extract_random {
-            if let (Some(writer), Some(region)) = (&mut self.random_writer, random_region) {
-                writer.write_all(b">")?;
-                writer.write_all(id)?;
-                writer.write_all(b"\n")?;
-                writer.write_all(region)?;
-                writer.write_all(b"\n")?;
-            }
+        if self.extract_random
+            && let (Some(writer), Some(region)) = (&mut self.random_writer, random_region)
+        {
+            writer.write_all(b">")?;
+            writer.write_all(id)?;
+            writer.write_all(b"\n")?;
+            writer.write_all(region)?;
+            writer.write_all(b"\n")?;
         }
 
         Ok(())
