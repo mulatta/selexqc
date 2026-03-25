@@ -16,6 +16,12 @@ pub struct CountEntry {
     pub rank: u64,
 }
 
+impl Default for CountCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CountCollector {
     pub fn new() -> Self {
         Self {

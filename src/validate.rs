@@ -42,10 +42,10 @@ pub fn run_validate(config: &ValidateConfig) -> Result<()> {
         None
     };
 
-    if let Some(parent) = std::path::Path::new(&config.output_prefix).parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).ok();
-        }
+    if let Some(parent) = std::path::Path::new(&config.output_prefix).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).ok();
     }
 
     let mut reader = parse_fastx_file(&config.input).context("Failed to open input file")?;

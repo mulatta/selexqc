@@ -194,8 +194,7 @@ impl ConstructMatcher {
     fn build_const_matches(&self, anchors: &[Option<(usize, usize)>]) -> Vec<Option<ConstMatch>> {
         anchors
             .iter()
-            .enumerate()
-            .map(|(_, anchor)| {
+            .map(|anchor| {
                 anchor.map(|(start, end)| ConstMatch {
                     position: start,
                     length: end - start,
