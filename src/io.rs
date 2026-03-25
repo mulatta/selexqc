@@ -108,6 +108,29 @@ pub fn write_ranked_fasta(path: &str, entries: &[CountEntry]) -> Result<()> {
     Ok(())
 }
 
+// --- CSV/TSV ---
+
+pub fn write_count_csv(path: &str, entries: &[CountEntry], delimiter: u8) -> Result<()> {
+    let file = File::create(path).with_context(|| format!("Failed to create {}", path))?;
+    let writer = BufWriter::with_capacity(512 * 1024, file);
+    let mut csv_writer = csv::WriterBuilder::new()
+        .delimiter(delimiter)
+        .from_writer(writer);
+
+    csv_writer.write_record(["rank", "sequence", "count", "rpm"])?;
+    for entry in entries {
+        csv_writer.write_record([
+            &entry.rank.to_string(),
+            std::str::from_utf8(&entry.sequence).unwrap_or(""),
+            &entry.count.to_string(),
+            &format!("{:.2}", entry.rpm),
+        ])?;
+    }
+    csv_writer.flush()?;
+    eprintln!("CSV/TSV written to: {}", path);
+    Ok(())
+}
+
 // --- Filter Writer ---
 
 pub struct FilterWriter {

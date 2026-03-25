@@ -39,6 +39,15 @@ impl CountCollector {
         self.counts.len()
     }
 
+    /// Add pre-counted sequences (for count-only mode with parallel merge).
+    pub fn add_count(&mut self, seq: Vec<u8>, count: u64) {
+        *self.counts.entry(seq).or_insert(0) += count;
+    }
+
+    pub fn set_total_reads(&mut self, total: u64) {
+        self.total_reads = total;
+    }
+
     pub fn finalize(self) -> Vec<CountEntry> {
         let total = self.total_reads as f64;
         let mut entries: Vec<CountEntry> = self
