@@ -9,3 +9,4 @@ result/*
 .direnv/*
 
 .jj/*
+.cargo
