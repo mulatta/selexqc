@@ -45,7 +45,7 @@ pub fn run_validate(config: &ValidateConfig) -> Result<()> {
     if let Some(parent) = std::path::Path::new(&config.output_prefix).parent()
         && !parent.as_os_str().is_empty()
     {
-        std::fs::create_dir_all(parent).ok();
+        std::fs::create_dir_all(parent)?;
     }
 
     let mut reader = parse_fastx_file(&config.input).context("Failed to open input file")?;
@@ -132,32 +132,26 @@ fn process_chunk(
     construct_col: &mut ConstructCollector,
     comp_col: &mut CompositionCollector,
     comb_col: &mut CombinationCollector,
-    filter_writer: Option<&mut io::FilterWriter>,
+    mut filter_writer: Option<&mut io::FilterWriter>,
 ) -> Result<()> {
     let match_results: Vec<_> = chunk
         .par_iter()
         .map(|rec| matcher.match_construct(&rec.seq))
         .collect();
 
-    let paired: Vec<(Vec<u8>, crate::matcher::MatchResult)> = chunk
-        .iter()
-        .zip(match_results.iter())
-        .map(|(rec, mr)| (rec.seq.clone(), mr.clone()))
-        .collect();
+    for (rec, result) in chunk.iter().zip(match_results.iter()) {
+        construct_col.process_record(&rec.seq, result);
+        comp_col.process_record(&rec.seq, result);
+        comb_col.process_record(result);
 
-    construct_col.process_chunk(&paired);
-    comp_col.process_chunk(&paired);
-    comb_col.process_chunk(&paired);
-
-    if let Some(fw) = filter_writer {
-        for (rec, result) in chunk.iter().zip(match_results.iter()) {
-            if result.matched {
-                let random_region = result
-                    .rand_regions
-                    .first()
-                    .and_then(|rm| rm.as_ref().map(|r| &rec.seq[r.start..r.start + r.length]));
-                fw.write_valid(&rec.id, &rec.seq, rec.qual.as_deref(), random_region)?;
-            }
+        if let Some(fw) = &mut filter_writer
+            && result.matched
+        {
+            let random_region = result
+                .rand_regions
+                .first()
+                .and_then(|rm| rm.as_ref().map(|r| &rec.seq[r.start..r.start + r.length]));
+            fw.write_valid(&rec.id, &rec.seq, rec.qual.as_deref(), random_region)?;
         }
     }
 

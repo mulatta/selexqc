@@ -30,11 +30,9 @@ impl CountCollector {
         }
     }
 
-    pub fn process_chunk(&mut self, records: &[(Vec<u8>, MatchResult)]) {
-        for (seq, _) in records {
-            *self.counts.entry(seq.clone()).or_insert(0) += 1;
-            self.total_reads += 1;
-        }
+    pub fn process_record(&mut self, seq: &[u8]) {
+        *self.counts.entry(seq.to_vec()).or_insert(0) += 1;
+        self.total_reads += 1;
     }
 
     pub fn total_reads(&self) -> u64 {
@@ -94,7 +92,7 @@ pub struct ConstructCollector {
     valid: u64,
     const_stats: Vec<ConstSegmentStats>,
     rand_stats: Vec<RandSegmentStats>,
-    segments: Vec<Segment>,
+    const_sequences: Vec<Vec<u8>>,
     near_miss_depth: usize,
 }
 
@@ -121,6 +119,14 @@ impl ConstructCollector {
             .filter(|s| matches!(s, Segment::Rand { .. }))
             .count();
 
+        let const_sequences: Vec<Vec<u8>> = segments
+            .iter()
+            .filter_map(|s| match s {
+                Segment::Const { sequence } => Some(sequence.clone()),
+                _ => None,
+            })
+            .collect();
+
         Self {
             total: 0,
             valid: 0,
@@ -138,64 +144,52 @@ impl ConstructCollector {
                     out_of_range: 0,
                 })
                 .collect(),
-            segments: segments.to_vec(),
+            const_sequences,
             near_miss_depth,
         }
     }
 
-    pub fn process_chunk(&mut self, records: &[(Vec<u8>, MatchResult)]) {
-        let const_sequences: Vec<&[u8]> = self
-            .segments
-            .iter()
-            .filter_map(|s| match s {
-                Segment::Const { sequence } => Some(sequence.as_slice()),
-                _ => None,
-            })
-            .collect();
+    pub fn process_record(&mut self, seq: &[u8], result: &MatchResult) {
+        self.total += 1;
+        if result.matched {
+            self.valid += 1;
+        }
 
-        for (seq, result) in records {
-            self.total += 1;
-            if result.matched {
-                self.valid += 1;
+        // Per-const stats
+        for (i, cm) in result.const_matches.iter().enumerate() {
+            if i >= self.const_stats.len() {
+                break;
             }
-
-            // Per-const stats
-            for (i, cm) in result.const_matches.iter().enumerate() {
-                if i >= self.const_stats.len() {
-                    break;
+            match cm {
+                Some(_) => {
+                    self.const_stats[i].found += 1;
                 }
-                match cm {
-                    Some(_) => {
-                        self.const_stats[i].found += 1;
-                    }
-                    None => {
-                        self.const_stats[i].not_found += 1;
-                        // Near-miss analysis (only for failed matches)
-                        if self.near_miss_depth > 0 && i < const_sequences.len() {
-                            let seq_upper: Vec<u8> =
-                                seq.iter().map(|b| b.to_ascii_uppercase()).collect();
-                            let dist = near_miss_distance(&seq_upper, const_sequences[i]);
-                            if dist <= self.near_miss_depth {
-                                let bucket = (dist - 1).min(3);
-                                self.const_stats[i].near_miss_dist[bucket] += 1;
-                            }
+                None => {
+                    self.const_stats[i].not_found += 1;
+                    if self.near_miss_depth > 0 && i < self.const_sequences.len() {
+                        let seq_upper: Vec<u8> =
+                            seq.iter().map(|b| b.to_ascii_uppercase()).collect();
+                        let dist = near_miss_distance(&seq_upper, &self.const_sequences[i]);
+                        if dist <= self.near_miss_depth {
+                            let bucket = (dist - 1).min(3);
+                            self.const_stats[i].near_miss_dist[bucket] += 1;
                         }
                     }
                 }
             }
+        }
 
-            // Per-rand stats
-            for (i, rm) in result.rand_regions.iter().enumerate() {
-                if i >= self.rand_stats.len() {
-                    break;
-                }
-                if let Some(rm) = rm {
-                    *self.rand_stats[i].length_dist.entry(rm.length).or_insert(0) += 1;
-                    if rm.in_range {
-                        self.rand_stats[i].in_range += 1;
-                    } else {
-                        self.rand_stats[i].out_of_range += 1;
-                    }
+        // Per-rand stats
+        for (i, rm) in result.rand_regions.iter().enumerate() {
+            if i >= self.rand_stats.len() {
+                break;
+            }
+            if let Some(rm) = rm {
+                *self.rand_stats[i].length_dist.entry(rm.length).or_insert(0) += 1;
+                if rm.in_range {
+                    self.rand_stats[i].in_range += 1;
+                } else {
+                    self.rand_stats[i].out_of_range += 1;
                 }
             }
         }
@@ -238,33 +232,31 @@ impl CompositionCollector {
         }
     }
 
-    pub fn process_chunk(&mut self, records: &[(Vec<u8>, MatchResult)]) {
-        for (seq, result) in records {
-            if !result.matched {
-                continue;
-            }
-            let seq_upper: Vec<u8> = seq.iter().map(|b| b.to_ascii_uppercase()).collect();
+    pub fn process_record(&mut self, seq: &[u8], result: &MatchResult) {
+        if !result.matched {
+            return;
+        }
+        let seq_upper: Vec<u8> = seq.iter().map(|b| b.to_ascii_uppercase()).collect();
 
-            for (i, rm) in result.rand_regions.iter().enumerate() {
-                if i >= self.rand_count {
-                    break;
+        for (i, rm) in result.rand_regions.iter().enumerate() {
+            if i >= self.rand_count {
+                break;
+            }
+            if let Some(rm) = rm {
+                let region = &seq_upper[rm.start..rm.start + rm.length];
+                // Extend position array if needed
+                while self.per_rand[i].len() < region.len() {
+                    self.per_rand[i].push([0; 4]);
                 }
-                if let Some(rm) = rm {
-                    let region = &seq_upper[rm.start..rm.start + rm.length];
-                    // Extend position array if needed
-                    while self.per_rand[i].len() < region.len() {
-                        self.per_rand[i].push([0; 4]);
-                    }
-                    for (pos, &base) in region.iter().enumerate() {
-                        let idx = match base {
-                            b'A' => 0,
-                            b'T' | b'U' => 1,
-                            b'G' => 2,
-                            b'C' => 3,
-                            _ => continue,
-                        };
-                        self.per_rand[i][pos][idx] += 1;
-                    }
+                for (pos, &base) in region.iter().enumerate() {
+                    let idx = match base {
+                        b'A' => 0,
+                        b'T' | b'U' => 1,
+                        b'G' => 2,
+                        b'C' => 3,
+                        _ => continue,
+                    };
+                    self.per_rand[i][pos][idx] += 1;
                 }
             }
         }
@@ -299,26 +291,22 @@ impl CombinationCollector {
         }
     }
 
-    pub fn process_chunk(&mut self, records: &[(Vec<u8>, MatchResult)]) {
-        for (_, result) in records {
-            let mut mask: u32 = 0;
+    pub fn process_record(&mut self, result: &MatchResult) {
+        let mut mask: u32 = 0;
 
-            // Const segment bits
-            for (i, cm) in result.const_matches.iter().enumerate() {
-                if cm.is_some() {
-                    mask |= 1 << i;
-                }
+        for (i, cm) in result.const_matches.iter().enumerate() {
+            if cm.is_some() {
+                mask |= 1 << i;
             }
-
-            // Rand segment bits (after const bits)
-            for (i, rm) in result.rand_regions.iter().enumerate() {
-                if rm.as_ref().is_some_and(|r| r.in_range) {
-                    mask |= 1 << (self.num_const + i);
-                }
-            }
-
-            *self.combinations.entry(mask).or_insert(0) += 1;
         }
+
+        for (i, rm) in result.rand_regions.iter().enumerate() {
+            if rm.as_ref().is_some_and(|r| r.in_range) {
+                mask |= 1 << (self.num_const + i);
+            }
+        }
+
+        *self.combinations.entry(mask).or_insert(0) += 1;
     }
 
     /// All-pass mask (every segment condition met).
@@ -345,24 +333,17 @@ mod tests {
     use crate::construct::Segment;
     use crate::matcher::ConstructMatcher;
 
-    fn run_match(segments: &[Segment], seq: &[u8]) -> (Vec<u8>, MatchResult) {
+    fn make_result(segments: &[Segment], seq: &[u8]) -> MatchResult {
         let matcher = ConstructMatcher::new(segments, true);
-        let result = matcher.match_construct(seq);
-        (seq.to_vec(), result)
+        matcher.match_construct(seq)
     }
 
     #[test]
     fn count_collector_basic() {
         let mut col = CountCollector::new();
-        let segments = vec![Segment::Const {
-            sequence: b"AA".to_vec(),
-        }];
-        let records = vec![
-            run_match(&segments, b"AATT"),
-            run_match(&segments, b"AATT"),
-            run_match(&segments, b"AACC"),
-        ];
-        col.process_chunk(&records);
+        col.process_record(b"AATT");
+        col.process_record(b"AATT");
+        col.process_record(b"AACC");
         assert_eq!(col.total_reads(), 3);
         assert_eq!(col.unique_count(), 2);
 
@@ -389,11 +370,10 @@ mod tests {
         ];
         let mut col = ConstructCollector::new(&segments, 3);
 
-        let records = vec![
-            run_match(&segments, b"ATCGNNGCTA"),  // both found
-            run_match(&segments, b"ATCGNNXXXXX"), // second not found
-        ];
-        col.process_chunk(&records);
+        let r1 = make_result(&segments, b"ATCGNNGCTA");
+        col.process_record(b"ATCGNNGCTA", &r1);
+        let r2 = make_result(&segments, b"ATCGNNXXXXX");
+        col.process_record(b"ATCGNNXXXXX", &r2);
 
         assert_eq!(col.total(), 2);
         assert_eq!(col.valid(), 1);
@@ -418,21 +398,17 @@ mod tests {
         ];
         let mut col = CompositionCollector::new(&segments);
 
-        let records = vec![
-            run_match(&segments, b"AAATCTT"),
-            run_match(&segments, b"AAATCTT"),
-        ];
-        col.process_chunk(&records);
+        for seq in [b"AAATCTT" as &[u8], b"AAATCTT"] {
+            let r = make_result(&segments, seq);
+            col.process_record(seq, &r);
+        }
 
         let per_rand = col.per_rand();
         assert_eq!(per_rand.len(), 1);
         assert_eq!(per_rand[0].len(), 3);
-        // Position 0: A=2
-        assert_eq!(per_rand[0][0][0], 2);
-        // Position 1: T=2
-        assert_eq!(per_rand[0][1][1], 2);
-        // Position 2: C=2
-        assert_eq!(per_rand[0][2][3], 2);
+        assert_eq!(per_rand[0][0][0], 2); // A
+        assert_eq!(per_rand[0][1][1], 2); // T
+        assert_eq!(per_rand[0][2][3], 2); // C
     }
 
     #[test]
@@ -451,11 +427,10 @@ mod tests {
         ];
         let mut col = CombinationCollector::new(&segments);
 
-        let records = vec![
-            run_match(&segments, b"AANNTT"),   // all pass → mask = 0b111
-            run_match(&segments, b"AANNXXXX"), // const[1] fail → mask = 0b001
-        ];
-        col.process_chunk(&records);
+        for seq in [b"AANNTT" as &[u8], b"AANNXXXX"] {
+            let r = make_result(&segments, seq);
+            col.process_record(&r);
+        }
 
         assert_eq!(*col.combinations().get(&0b111).unwrap_or(&0), 1);
         assert_eq!(*col.combinations().get(&0b001).unwrap_or(&0), 1);
