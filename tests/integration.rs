@@ -2,8 +2,11 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 use selexqc::analyze::{AnalyzeConfig, run_analyze};
+use selexqc::compare::{CompareConfig, run_compare};
 use selexqc::construct::Segment;
 use selexqc::count::{CountConfig, OutputFormat, run_count};
+use selexqc::enrich::{EnrichConfig, run_enrich};
+use selexqc::search::{SearchConfig, run_search};
 use selexqc::validate::{ValidateConfig, run_validate};
 
 fn test_segments() -> Vec<Segment> {
@@ -282,4 +285,215 @@ fn analyze_combination_analysis() {
     // First combo should be the most frequent
     let first = &combos[0];
     assert!(first["count"].as_u64().unwrap() > 0);
+}
+
+// --- Phase 2: enrich, compare, search ---
+
+/// Helper: run analyze to produce a Parquet file for downstream tests.
+fn produce_parquet(tmp: &TempDir, name: &str) -> String {
+    let prefix = tmp.path().join(name).to_str().unwrap().to_string();
+    run_analyze(&AnalyzeConfig {
+        input: fixture_path(),
+        output_prefix: prefix.clone(),
+        segments: test_segments(),
+        strict_boundaries: true,
+        near_miss_depth: 0,
+        filter: false,
+        extract_random: false,
+        quiet: true,
+    })
+    .unwrap();
+    format!("{}.parquet", prefix)
+}
+
+#[test]
+fn enrich_two_rounds() {
+    let tmp = TempDir::new().unwrap();
+    let pq1 = produce_parquet(&tmp, "r1");
+    let pq2 = produce_parquet(&tmp, "r2");
+    let out = tmp.path().join("enrich").to_str().unwrap().to_string();
+
+    run_enrich(&EnrichConfig {
+        inputs: vec![PathBuf::from(&pq1), PathBuf::from(&pq2)],
+        output_prefix: out.clone(),
+        labels: vec!["r1".into(), "r2".into()],
+        quiet: true,
+    })
+    .unwrap();
+
+    let tsv_path = format!("{}.enrichment.tsv", out);
+    assert!(
+        std::path::Path::new(&tsv_path).exists(),
+        "Enrichment TSV should exist"
+    );
+
+    let content = std::fs::read_to_string(&tsv_path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    // Header + 9 unique sequences
+    assert!(lines.len() > 1, "Should have header + data rows");
+    // Header should contain round labels
+    assert!(lines[0].contains("r1_rpm"));
+    assert!(lines[0].contains("r2_rpm"));
+    assert!(lines[0].contains("fold_r2_vs_r1"));
+}
+
+#[test]
+fn enrich_three_rounds_has_overall_fold() {
+    let tmp = TempDir::new().unwrap();
+    let pq1 = produce_parquet(&tmp, "r1");
+    let pq2 = produce_parquet(&tmp, "r3");
+    let pq3 = produce_parquet(&tmp, "r5");
+    let out = tmp.path().join("enrich3").to_str().unwrap().to_string();
+
+    run_enrich(&EnrichConfig {
+        inputs: vec![
+            PathBuf::from(&pq1),
+            PathBuf::from(&pq2),
+            PathBuf::from(&pq3),
+        ],
+        output_prefix: out.clone(),
+        labels: vec!["r1".into(), "r3".into(), "r5".into()],
+        quiet: true,
+    })
+    .unwrap();
+
+    let content =
+        std::fs::read_to_string(format!("{}.enrichment.tsv", out)).unwrap();
+    let header = content.lines().next().unwrap();
+    // 3 rounds → adjacent folds + overall fold
+    assert!(header.contains("fold_r3_vs_r1"));
+    assert!(header.contains("fold_r5_vs_r3"));
+    assert!(header.contains("fold_r5_vs_r1"));
+}
+
+#[test]
+fn compare_produces_tsv_and_histogram() {
+    let tmp = TempDir::new().unwrap();
+    let pq1 = produce_parquet(&tmp, "x");
+    let pq2 = produce_parquet(&tmp, "y");
+    let out = tmp.path().join("cmp").to_str().unwrap().to_string();
+
+    run_compare(&CompareConfig {
+        input_x: PathBuf::from(&pq1),
+        input_y: PathBuf::from(&pq2),
+        output_prefix: out.clone(),
+        label_x: "round3".into(),
+        label_y: "round5".into(),
+        quiet: true,
+    })
+    .unwrap();
+
+    let tsv = format!("{}.compare.tsv", out);
+    let hist = format!("{}.compare.histogram.tsv", out);
+    assert!(std::path::Path::new(&tsv).exists(), "Compare TSV should exist");
+    assert!(
+        std::path::Path::new(&hist).exists(),
+        "Histogram TSV should exist"
+    );
+
+    // Histogram should have 102 bins + header
+    let hist_content = std::fs::read_to_string(&hist).unwrap();
+    let hist_lines: Vec<&str> = hist_content.lines().collect();
+    assert_eq!(hist_lines.len(), 103, "102 bins + header");
+
+    // Compare TSV header should have labels
+    let tsv_content = std::fs::read_to_string(&tsv).unwrap();
+    let header = tsv_content.lines().next().unwrap();
+    assert!(header.contains("round3_rpm"));
+    assert!(header.contains("round5_rpm"));
+    assert!(header.contains("log2_ratio"));
+}
+
+#[test]
+fn compare_same_file_log2_zero() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "same");
+    let out = tmp.path().join("self_cmp").to_str().unwrap().to_string();
+
+    run_compare(&CompareConfig {
+        input_x: PathBuf::from(&pq),
+        input_y: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        label_x: "a".into(),
+        label_y: "b".into(),
+        quiet: true,
+    })
+    .unwrap();
+
+    let content = std::fs::read_to_string(format!("{}.compare.tsv", out)).unwrap();
+    // All log2 ratios should be 0 (same file)
+    for line in content.lines().skip(1) {
+        let fields: Vec<&str> = line.split('\t').collect();
+        let log2: f64 = fields.last().unwrap().parse().unwrap();
+        assert!(
+            log2.abs() < 0.001,
+            "Self-compare should have log2=0, got {}",
+            log2
+        );
+    }
+}
+
+#[test]
+fn search_iupac_and_mode() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("search").to_str().unwrap().to_string();
+
+    // Search for "NNNNNN" (matches everything) — should find all 9 sequences
+    run_search(&SearchConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        patterns: vec!["NNNNNN".into()],
+        match_all: true,
+        quiet: true,
+    })
+    .unwrap();
+
+    let fasta = std::fs::read_to_string(format!("{}.search.fasta", out)).unwrap();
+    let seq_count = fasta.lines().filter(|l| l.starts_with('>')).count();
+    assert_eq!(seq_count, 9, "NNNNNN should match all 9 unique sequences");
+}
+
+#[test]
+fn search_specific_pattern() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("search2").to_str().unwrap().to_string();
+
+    // Search for "AAAAAA" — only sequences containing AAAAAA
+    run_search(&SearchConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        patterns: vec!["AAAAAA".into()],
+        match_all: true,
+        quiet: true,
+    })
+    .unwrap();
+
+    let fasta = std::fs::read_to_string(format!("{}.search.fasta", out)).unwrap();
+    let seq_count = fasta.lines().filter(|l| l.starts_with('>')).count();
+    // Sequences with AAAAAA: all that have the 5' primer
+    assert!(seq_count > 0, "Should find sequences with AAAAAA");
+    assert!(seq_count < 9, "Should not match all sequences");
+}
+
+#[test]
+fn search_or_mode() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("search_or").to_str().unwrap().to_string();
+
+    // Search for "TTTTTT" OR "GCATGC" — TTTTTT in most, GCATGC in seq3
+    run_search(&SearchConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        patterns: vec!["TTTTTT".into(), "GCATGC".into()],
+        match_all: false, // OR mode
+        quiet: true,
+    })
+    .unwrap();
+
+    let fasta = std::fs::read_to_string(format!("{}.search.fasta", out)).unwrap();
+    let seq_count = fasta.lines().filter(|l| l.starts_with('>')).count();
+    assert!(seq_count > 0, "OR mode should match sequences with TTTTTT or GCATGC");
 }
