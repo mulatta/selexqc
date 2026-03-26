@@ -90,6 +90,97 @@ pub fn write_count_parquet(
     Ok(())
 }
 
+// --- Parquet Reader ---
+
+/// Entry read back from a Parquet count table.
+pub struct ParquetEntry {
+    pub sequence: String,
+    pub count: u64,
+    pub rpm: f64,
+    pub rank: u64,
+}
+
+pub fn read_count_parquet(path: &str) -> Result<Vec<ParquetEntry>> {
+    use arrow::array::AsArray;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
+    let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+    let reader = builder.build()?;
+
+    let mut entries = Vec::new();
+    for batch in reader {
+        let batch = batch?;
+        let ranks = batch.column_by_name("rank")
+            .expect("missing 'rank' column")
+            .as_primitive::<arrow::datatypes::UInt64Type>();
+        let sequences = batch.column_by_name("sequence")
+            .expect("missing 'sequence' column")
+            .as_string::<i32>();
+        let counts = batch.column_by_name("count")
+            .expect("missing 'count' column")
+            .as_primitive::<arrow::datatypes::UInt64Type>();
+        let rpms = batch.column_by_name("rpm")
+            .expect("missing 'rpm' column")
+            .as_primitive::<arrow::datatypes::Float64Type>();
+
+        for i in 0..batch.num_rows() {
+            entries.push(ParquetEntry {
+                rank: ranks.value(i),
+                sequence: sequences.value(i).to_string(),
+                count: counts.value(i),
+                rpm: rpms.value(i),
+            });
+        }
+    }
+
+    Ok(entries)
+}
+
+/// Read Parquet file-level key-value metadata.
+pub fn read_parquet_metadata(path: &str) -> Result<HashMap<String, String>> {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+
+    let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
+    let reader = SerializedFileReader::new(file)?;
+    let meta = reader.metadata().file_metadata().key_value_metadata();
+
+    let mut map = HashMap::new();
+    if let Some(kvs) = meta {
+        for kv in kvs {
+            if let Some(ref v) = kv.value {
+                map.insert(kv.key.clone(), v.clone());
+            }
+        }
+    }
+    Ok(map)
+}
+
+/// Validate that all Parquet files share the same construct config.
+pub fn validate_parquet_consistency(paths: &[&str]) -> Result<()> {
+    if paths.len() < 2 {
+        return Ok(());
+    }
+
+    let first_meta = read_parquet_metadata(paths[0])?;
+    let first_construct = first_meta.get("selexqc.construct");
+
+    for path in &paths[1..] {
+        let meta = read_parquet_metadata(path)?;
+        let construct = meta.get("selexqc.construct");
+        if construct != first_construct {
+            anyhow::bail!(
+                "Inconsistent construct definitions:\n  {}: {:?}\n  {}: {:?}",
+                paths[0],
+                first_construct,
+                path,
+                construct,
+            );
+        }
+    }
+    Ok(())
+}
+
 // --- FASTAptamer-compatible ranked FASTA ---
 
 pub fn write_ranked_fasta(path: &str, entries: &[CountEntry]) -> Result<()> {

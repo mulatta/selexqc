@@ -1275,6 +1275,7 @@ dependencies = [
  "needletail",
  "parquet",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

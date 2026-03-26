@@ -1,7 +1,10 @@
 pub mod analyze;
 pub mod collector;
+pub mod compare;
 pub mod construct;
 pub mod count;
+pub mod enrich;
 pub mod io;
 pub mod matcher;
+pub mod search;
 pub mod validate;

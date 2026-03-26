@@ -131,6 +131,75 @@ enum Commands {
         #[arg(long)]
         extract_random: bool,
     },
+
+    /// Compare enrichment across multiple SELEX rounds
+    Enrich {
+        /// Input Parquet files (one per round, in order)
+        #[arg(short, long, required = true, num_args = 2..)]
+        input: Vec<PathBuf>,
+
+        /// Output prefix
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Round labels (default: file stems)
+        #[arg(long, num_args = 1..)]
+        labels: Vec<String>,
+
+        /// Suppress progress output
+        #[arg(short, long)]
+        quiet: bool,
+    },
+
+    /// Compare two populations (log2 RPM ratio)
+    Compare {
+        /// First population Parquet file
+        #[arg(short = 'x', long)]
+        input_x: PathBuf,
+
+        /// Second population Parquet file
+        #[arg(short = 'y', long)]
+        input_y: PathBuf,
+
+        /// Output prefix
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Label for first population
+        #[arg(long, default_value = "x")]
+        label_x: String,
+
+        /// Label for second population
+        #[arg(long, default_value = "y")]
+        label_y: String,
+
+        /// Suppress progress output
+        #[arg(short, long)]
+        quiet: bool,
+    },
+
+    /// Search for IUPAC motif patterns in sequences
+    Search {
+        /// Input Parquet file
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Output prefix
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// IUPAC pattern(s) to search for (repeatable)
+        #[arg(short, long, required = true, num_args = 1..)]
+        pattern: Vec<String>,
+
+        /// Require all patterns to match (default). Use --any for OR mode.
+        #[arg(long)]
+        any: bool,
+
+        /// Suppress progress output
+        #[arg(short, long)]
+        quiet: bool,
+    },
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -255,6 +324,75 @@ fn main() -> Result<()> {
                 near_miss_depth,
                 filter,
                 extract_random,
+                quiet,
+            })?;
+        }
+
+        Commands::Enrich {
+            input,
+            output,
+            labels,
+            quiet,
+        } => {
+            let out_prefix = output.unwrap_or_else(|| "enrichment".to_string());
+            let labels = if labels.is_empty() {
+                input
+                    .iter()
+                    .map(|p| default_output_prefix(p))
+                    .collect()
+            } else {
+                labels
+            };
+
+            selexqc::enrich::run_enrich(&selexqc::enrich::EnrichConfig {
+                inputs: input,
+                output_prefix: out_prefix,
+                labels,
+                quiet,
+            })?;
+        }
+
+        Commands::Compare {
+            input_x,
+            input_y,
+            output,
+            label_x,
+            label_y,
+            quiet,
+        } => {
+            let out_prefix = output.unwrap_or_else(|| {
+                format!(
+                    "{}_vs_{}",
+                    default_output_prefix(&input_x),
+                    default_output_prefix(&input_y)
+                )
+            });
+
+            selexqc::compare::run_compare(&selexqc::compare::CompareConfig {
+                input_x,
+                input_y,
+                output_prefix: out_prefix,
+                label_x,
+                label_y,
+                quiet,
+            })?;
+        }
+
+        Commands::Search {
+            input,
+            output,
+            pattern,
+            any,
+            quiet,
+        } => {
+            let out_prefix =
+                output.unwrap_or_else(|| default_output_prefix(&input));
+
+            selexqc::search::run_search(&selexqc::search::SearchConfig {
+                input,
+                output_prefix: out_prefix,
+                patterns: pattern,
+                match_all: !any,
                 quiet,
             })?;
         }
