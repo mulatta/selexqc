@@ -1,4 +1,5 @@
 pub mod analyze;
+pub mod cluster;
 pub mod collector;
 pub mod compare;
 pub mod construct;

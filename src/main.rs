@@ -200,6 +200,33 @@ enum Commands {
         #[arg(short, long)]
         quiet: bool,
     },
+
+    /// Cluster sequences by edit distance (FASTAptamer-Cluster replacement)
+    Cluster {
+        /// Input Parquet file (from count or analyze)
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Output prefix
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// Maximum edit distance threshold
+        #[arg(short = 'd', long, default_value = "7")]
+        max_dist: u32,
+
+        /// Minimum read count to include (filter low-abundance sequences)
+        #[arg(short = 'f', long)]
+        count_filter: Option<u64>,
+
+        /// Maximum number of clusters to generate
+        #[arg(short = 'c', long)]
+        max_clusters: Option<usize>,
+
+        /// Suppress progress output
+        #[arg(short, long)]
+        quiet: bool,
+    },
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -393,6 +420,27 @@ fn main() -> Result<()> {
                 output_prefix: out_prefix,
                 patterns: pattern,
                 match_all: !any,
+                quiet,
+            })?;
+        }
+
+        Commands::Cluster {
+            input,
+            output,
+            max_dist,
+            count_filter,
+            max_clusters,
+            quiet,
+        } => {
+            let out_prefix =
+                output.unwrap_or_else(|| default_output_prefix(&input));
+
+            selexqc::cluster::run_cluster(&selexqc::cluster::ClusterConfig {
+                input,
+                output_prefix: out_prefix,
+                max_dist,
+                count_filter,
+                max_clusters,
                 quiet,
             })?;
         }

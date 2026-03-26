@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 use selexqc::analyze::{AnalyzeConfig, run_analyze};
+use selexqc::cluster::{ClusterConfig, run_cluster};
 use selexqc::compare::{CompareConfig, run_compare};
 use selexqc::construct::Segment;
 use selexqc::count::{CountConfig, OutputFormat, run_count};
@@ -496,4 +497,102 @@ fn search_or_mode() {
     let fasta = std::fs::read_to_string(format!("{}.search.fasta", out)).unwrap();
     let seq_count = fasta.lines().filter(|l| l.starts_with('>')).count();
     assert!(seq_count > 0, "OR mode should match sequences with TTTTTT or GCATGC");
+}
+
+// --- Phase 3: cluster ---
+
+#[test]
+fn cluster_produces_outputs() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("clustered").to_str().unwrap().to_string();
+
+    run_cluster(&ClusterConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        max_dist: 3,
+        count_filter: None,
+        max_clusters: None,
+        quiet: true,
+    })
+    .unwrap();
+
+    assert!(
+        std::path::Path::new(&format!("{}.clustered.fasta", out)).exists(),
+        "Clustered FASTA should exist"
+    );
+    assert!(
+        std::path::Path::new(&format!("{}.clusters.tsv", out)).exists(),
+        "Cluster summary should exist"
+    );
+}
+
+#[test]
+fn cluster_fasta_format() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("cl").to_str().unwrap().to_string();
+
+    run_cluster(&ClusterConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        max_dist: 3,
+        count_filter: None,
+        max_clusters: None,
+        quiet: true,
+    })
+    .unwrap();
+
+    let fasta = std::fs::read_to_string(format!("{}.clustered.fasta", out)).unwrap();
+    let first_header = fasta.lines().next().unwrap();
+    // FASTAptamer format: >Rank-Reads-RPM-Cluster#-ClusterRank-EditDistance
+    let parts: Vec<&str> = first_header[1..].split('-').collect();
+    assert!(parts.len() >= 6, "Header should have 6+ fields: {}", first_header);
+}
+
+#[test]
+fn cluster_summary_has_all_sequences() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("cl2").to_str().unwrap().to_string();
+
+    run_cluster(&ClusterConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        max_dist: 100, // very permissive — everything in 1 cluster
+        count_filter: None,
+        max_clusters: None,
+        quiet: true,
+    })
+    .unwrap();
+
+    let summary = std::fs::read_to_string(format!("{}.clusters.tsv", out)).unwrap();
+    let data_lines: Vec<&str> = summary.lines().skip(1).collect();
+    // With dist=100, should be 1 cluster containing all 9 sequences
+    assert_eq!(data_lines.len(), 1, "Expected 1 cluster with dist=100");
+    let fields: Vec<&str> = data_lines[0].split('\t').collect();
+    let size: usize = fields[1].parse().unwrap();
+    assert_eq!(size, 9, "Single cluster should contain all 9 sequences");
+}
+
+#[test]
+fn cluster_with_count_filter() {
+    let tmp = TempDir::new().unwrap();
+    let pq = produce_parquet(&tmp, "counts");
+    let out = tmp.path().join("cl3").to_str().unwrap().to_string();
+
+    run_cluster(&ClusterConfig {
+        input: PathBuf::from(&pq),
+        output_prefix: out.clone(),
+        max_dist: 3,
+        count_filter: Some(2), // only sequences with count >= 2
+        max_clusters: None,
+        quiet: true,
+    })
+    .unwrap();
+
+    let summary = std::fs::read_to_string(format!("{}.clusters.tsv", out)).unwrap();
+    let data_lines: Vec<&str> = summary.lines().skip(1).collect();
+    // Only seq1=seq2=seq11 has count=3, rest have count=1
+    assert_eq!(data_lines.len(), 1, "Only 1 sequence passes count>=2 filter");
 }
