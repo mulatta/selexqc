@@ -24,9 +24,9 @@ enum Commands {
         #[arg(short, long, required = true, num_args = 1..)]
         input: Vec<PathBuf>,
 
-        /// Output prefix (or directory for multi-input)
+        /// Output prefix (default: input stem). Directory for multi-input.
         #[arg(short, long)]
-        output: String,
+        output: Option<String>,
 
         /// Construct segment definition (repeatable, order matters)
         /// Format: "const:SEQUENCE" or "rand:MIN-MAX"
@@ -72,9 +72,9 @@ enum Commands {
         #[arg(short, long, required = true, num_args = 1..)]
         input: Vec<PathBuf>,
 
-        /// Output prefix
+        /// Output prefix (default: input stem)
         #[arg(short, long)]
-        output: String,
+        output: Option<String>,
 
         /// Output format
         #[arg(short, long, default_value = "parquet")]
@@ -99,9 +99,9 @@ enum Commands {
         #[arg(short, long)]
         input: PathBuf,
 
-        /// Output prefix for report files
+        /// Output prefix for report files (default: input stem)
         #[arg(short, long)]
-        output: String,
+        output: Option<String>,
 
         /// Construct segment definition
         #[arg(long, required = true, num_args = 1.., value_parser = parse_segment_cli)]
@@ -174,19 +174,9 @@ fn main() -> Result<()> {
             validate_segments(&segment)?;
             setup_threads(threads);
 
+            let multi = input.len() > 1;
             for input_path in &input {
-                let out_prefix = if input.len() > 1 {
-                    // Multi-input: use output as directory
-                    let stem = input_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("output");
-                    // Strip .fastq/.fq/.gz suffixes
-                    let base = strip_seq_extensions(stem);
-                    format!("{}/{}", output, base)
-                } else {
-                    output.clone()
-                };
+                let out_prefix = resolve_output_prefix(&output, input_path, multi);
 
                 if !quiet {
                     eprintln!("Processing: {}", input_path.display());
@@ -215,17 +205,9 @@ fn main() -> Result<()> {
         } => {
             setup_threads(threads);
 
+            let multi = input.len() > 1;
             for input_path in &input {
-                let out_prefix = if input.len() > 1 {
-                    let stem = input_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("output");
-                    let base = strip_seq_extensions(stem);
-                    format!("{}/{}", output, base)
-                } else {
-                    output.clone()
-                };
+                let out_prefix = resolve_output_prefix(&output, input_path, multi);
 
                 if !quiet {
                     eprintln!("Counting: {}", input_path.display());
@@ -264,9 +246,10 @@ fn main() -> Result<()> {
                 eprintln!("Validating: {}", input.display());
             }
 
+            let out_prefix = resolve_output_prefix(&output, &input, false);
             selexqc::validate::run_validate(&selexqc::validate::ValidateConfig {
                 input,
-                output_prefix: output,
+                output_prefix: out_prefix,
                 segments: segment,
                 strict_boundaries,
                 near_miss_depth,
@@ -278,6 +261,32 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Derive output prefix from input path by stripping sequence file extensions.
+fn default_output_prefix(input: &std::path::Path) -> String {
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    strip_seq_extensions(stem).to_string()
+}
+
+/// Resolve output prefix: use explicit value, or derive from input.
+/// For multi-input with explicit output, treat output as directory.
+fn resolve_output_prefix(
+    output: &Option<String>,
+    input_path: &std::path::Path,
+    multi_input: bool,
+) -> String {
+    match output {
+        Some(out) if multi_input => {
+            let base = default_output_prefix(input_path);
+            format!("{}/{}", out, base)
+        }
+        Some(out) => out.clone(),
+        None => default_output_prefix(input_path),
+    }
 }
 
 fn strip_seq_extensions(name: &str) -> &str {
