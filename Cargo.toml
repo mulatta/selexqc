@@ -13,6 +13,7 @@ keywords = ["bioinformatics", "fasta", "fastq", "selex", "aptamer"]
 categories = ["science", "command-line-utilities"]
 
 [dependencies]
+seqtable = { version = "0.2", default-features = false }
 ahash = "0.8"
 anyhow = "1.0"
 arrow = "53.0"

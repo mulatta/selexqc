@@ -19,7 +19,7 @@
       inherit src;
       pname = "selexqc";
       version = "0.2.0";
-      nativeBuildInputs = with pkgs; [pkg-config];
+      nativeBuildInputs = with pkgs; [pkg-config cmake];
     };
 
     cargoArtifacts = craneLib.buildDepsOnly commonArgs;
