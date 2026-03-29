@@ -1,11 +1,12 @@
 use ahash::AHashMap;
+use seqtable::DualSeqCounts;
 
 use crate::construct::Segment;
 use crate::matcher::{MatchResult, near_miss_distance};
 
-/// Sequence frequency counting.
+/// Sequence frequency counting, backed by seqtable's DualSeqCounts.
 pub struct CountCollector {
-    counts: AHashMap<Vec<u8>, u64>,
+    counts: DualSeqCounts,
     total_reads: u64,
 }
 
@@ -25,13 +26,21 @@ impl Default for CountCollector {
 impl CountCollector {
     pub fn new() -> Self {
         Self {
-            counts: AHashMap::new(),
+            counts: DualSeqCounts::new(),
             total_reads: 0,
         }
     }
 
+    /// Create from pre-counted DualSeqCounts (for count-only mode).
+    pub fn from_counts(counts: DualSeqCounts, total_reads: u64) -> Self {
+        Self {
+            counts,
+            total_reads,
+        }
+    }
+
     pub fn process_record(&mut self, seq: &[u8]) {
-        *self.counts.entry(seq.to_vec()).or_insert(0) += 1;
+        self.counts.insert(seq);
         self.total_reads += 1;
     }
 
@@ -43,15 +52,6 @@ impl CountCollector {
         self.counts.len()
     }
 
-    /// Add pre-counted sequences (for count-only mode with parallel merge).
-    pub fn add_count(&mut self, seq: Vec<u8>, count: u64) {
-        *self.counts.entry(seq).or_insert(0) += count;
-    }
-
-    pub fn set_total_reads(&mut self, total: u64) {
-        self.total_reads = total;
-    }
-
     pub fn finalize(self) -> Vec<CountEntry> {
         let total = self.total_reads as f64;
         let mut entries: Vec<CountEntry> = self
@@ -60,12 +60,15 @@ impl CountCollector {
             .map(|(sequence, count)| CountEntry {
                 sequence,
                 count,
-                rpm: (count as f64 / total) * 1_000_000.0,
+                rpm: if total > 0.0 {
+                    (count as f64 / total) * 1_000_000.0
+                } else {
+                    0.0
+                },
                 rank: 0,
             })
             .collect();
 
-        // Sort descending by count
         entries.sort_unstable_by(|a, b| b.count.cmp(&a.count));
 
         // Competition ranking (1-2-2-4)
